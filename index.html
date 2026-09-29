@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文件夹管理器</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2314b8a6' d='M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0f1115; --surface:#161a20; --surface2:#1c2129; --border:#2a3038;
+  --text:#e6e9ee; --text2:#9aa3af; --text3:#6b7480;
+  --accent:#14b8a6; --accent-soft:rgba(20,184,166,.14);
+  --danger:#ef4444; --danger-soft:rgba(239,68,68,.12);
+  --hover:#222831; --active:#263238;
+  --shadow:0 8px 28px rgba(0,0,0,.35);
+  --radius:10px;
+  --mono:"SF Mono",ui-monospace,Consolas,"Liberation Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+}
+[data-theme="light"]{
+  --bg:#f4f6f8; --surface:#ffffff; --surface2:#eef1f4; --border:#dde2e8;
+  --text:#1b222c; --text2:#5a6572; --text3:#8a94a1;
+  --accent:#0d9488; --accent-soft:rgba(13,148,136,.1);
+  --danger:#dc2626; --danger-soft:rgba(220,38,38,.08);
+  --hover:#f0f3f6; --active:#e6f2f0;
+  --shadow:0 8px 28px rgba(16,24,40,.1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--sans);background:var(--bg);color:var(--text);
+  display:flex;flex-direction:column;height:100vh;overflow:hidden;
+  transition:background .2s,color .2s;
+}
+::selection{background:var(--accent-soft)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ===== 顶部工具栏 ===== */
+.toolbar{
+  display:flex;align-items:center;gap:10px;padding:10px 16px;
+  background:var(--surface);border-bottom:1px solid var(--border);
+  flex-wrap:wrap;position:relative;z-index:10;
+}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;white-space:nowrap}
+.brand svg{width:20px;height:20px}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 12px;
+  background:var(--surface2);color:var(--text);border:1px solid var(--border);
+  border-radius:8px;font-size:13px;cursor:pointer;font-family:var(--sans);
+  transition:background .15s,border-color .15s,transform .05s;white-space:nowrap;
+}
+.btn:hover{background:var(--hover)}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn svg{width:15px;height:15px;flex:none}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#04120f;font-weight:600}
+.btn-primary:hover{background:#0ea594;border-color:#0ea594}
+[data-theme="light"] .btn-primary{color:#ffffff}
+.btn-primary:hover{filter:brightness(.95)}
+.btn-danger{color:var(--danger);border-color:var(--danger)}
+.btn-danger:hover{background:var(--danger-soft)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.icon-btn{padding:7px;border-radius:8px}
+.spacer{flex:1}
+
+/* 面包屑 */
+.crumbs{
+  display:flex;align-items:center;gap:2px;flex:1;min-width:180px;
+  padding:4px 8px;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;overflow-x:auto;white-space:nowrap;
+}
+.crumbs::-webkit-scrollbar{height:4px}
+.crumb{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;
+  font-size:13px;cursor:pointer;color:var(--text2)}
+.crumb:hover{background:var(--hover);color:var(--text)}
+.crumb.current{color:var(--text);font-weight:600;cursor:default}
+.crumb.current:hover{background:transparent}
+.crumb-sep{color:var(--text3);font-size:11px;flex:none}
+
+/* 搜索 */
+.search{
+  display:flex;align-items:center;gap:6px;padding:0 10px;
+  background:var(--bg);border:1px solid var(--border);border-radius:8px;
+}
+.search:focus-within{border-color:var(--accent)}
+.search svg{width:14px;height:14px;color:var(--text3);flex:none}
+.search input{
+  border:none;background:transparent;color:var(--text);font-size:13px;
+  padding:8px 0;width:140px;outline:none;font-family:var(--sans);
+}
+.search input::placeholder{color:var(--text3)}
+
+/* 排序下拉 */
+.select-wrap{position:relative}
+.select-wrap select{
+  appearance:none;padding:8px 26px 8px 12px;background:var(--surface2);
+  color:var(--text);border:1px solid var(--border);border-radius:8px;
+  font-size:13px;cursor:pointer;outline:none;font-family:var(--sans);
+}
+.select-wrap select:focus-visible{border-color:var(--accent)}
+.select-wrap::after{
+  content:"";position:absolute;right:10px;top:50%;width:0;height:0;
+  border-left:4px solid transparent;border-right:4px solid transparent;
+  border-top:5px solid var(--text2);transform:translateY(-40%);pointer-events:none;
+}
+
+/* ===== 主区域 ===== */
+.main{flex:1;overflow-y:auto;padding:0}
+.main::-webkit-scrollbar{width:12px}
+
+/* 空状态 */
+.empty{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;gap:16px;color:var(--text2);padding:40px;text-align:center;
+}
+.empty svg{width:64px;height:64px;opacity:.5}
+.empty h2{font-size:18px;font-weight:600;color:var(--text)}
+.empty p{font-size:13px;max-width:420px;line-height:1.7}
+.empty .btn{margin-top:6px}
+
+/* 列表视图 */
+.list-view{padding:6px 16px 80px}
+.list-head,.file-row{
+  display:grid;grid-template-columns:minmax(220px,1fr) 110px 120px 70px;
+  gap:12px;align-items:center;padding:0 12px;
+}
+.list-head{
+  position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);
+  padding:8px 12px;font-size:12px;color:var(--text3);z-index:5;border-radius:0;
+}
+.list-head .th{display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none}
+.list-head .th:hover{color:var(--text)}
+.th .arrow{font-size:10px;opacity:.7}
+.file-row{
+  padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;
+  border-radius:6px;transition:background .1s;
+}
+.file-row:hover{background:var(--hover)}
+.file-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.file-row.selected{background:var(--accent-soft)}
+.col-name{display:flex;align-items:center;gap:10px;min-width:0;overflow:hidden}
+.col-name .ic{flex:none;width:20px;height:20px}
+.col-name .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px}
+.file-row[data-kind="dir"] .nm{font-weight:600}
+.col-size,.col-time{font-size:12.5px;color:var(--text2);font-family:var(--mono)}
+.col-type{font-size:12px;color:var(--text3)}
+
+/* 网格视图 */
+.grid-view{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:10px;padding:14px 16px 80px;
+}
+.grid-item{
+  display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 10px;
+  border:1px solid var(--border);border-radius:10px;cursor:pointer;text-align:center;
+  transition:background .12s,border-color .12s,transform .12s;
+}
+.grid-item:hover{background:var(--hover);transform:translateY(-2px)}
+.grid-item:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.grid-item.selected{border-color:var(--accent);background:var(--accent-soft)}
+.grid-item .ic{width:34px;height:34px}
+.grid-item .nm{font-size:12.5px;word-break:break-all;line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.grid-item .meta{font-size:11px;color:var(--text3);font-family:var(--mono)}
+
+/* 统计面板 */
+.stats{
+  display:flex;align-items:center;gap:20px;padding:8px 18px;flex-wrap:wrap;
+  background:var(--surface);border-top:1px solid var(--border);font-size:12px;color:var(--text2);
+}
+.stat{display:flex;align-items:center;gap:6px}
+.stat b{color:var(--text);font-family:var(--mono);font-weight:600}
+.stat-bar{width:140px;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.stat-bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+
+/* 类型分布抽屉 */
+.dist-wrap{margin-left:auto;display:flex;align-items:center;gap:14px}
+.dist-bars{display:flex;flex-direction:column;gap:3px;width:200px}
+.dist-row{display:grid;grid-template-columns:56px 1fr 40px;gap:6px;align-items:center;font-size:11px}
+.dist-row .lbl{color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dist-row .tr{height:5px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.dist-row .tr i{display:block;height:100%;border-radius:3px;background:var(--accent)}
+.dist-row .vl{font-family:var(--mono);color:var(--text2);text-align:right}
+
+/* ===== 弹窗 ===== */
+.modal-mask{
+  position:fixed;inset:0;background:rgba(8,10,14,.6);display:none;
+  align-items:center;justify-content:center;z-index:100;padding:20px;backdrop-filter:blur(3px);
+}
+.modal-mask.show{display:flex}
+.modal{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  box-shadow:var(--shadow);width:100%;max-width:480px;max-height:82vh;
+  overflow:auto;padding:20px 22px;
+}
+.modal h3{font-size:16px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.modal h3 svg{width:18px;height:18px;color:var(--accent)}
+.modal p{font-size:13px;color:var(--text2);line-height:1.65;margin-bottom:12px}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin:6px 0 14px}
+.detail-grid .k{font-size:12px;color:var(--text3)}
+.detail-grid .v{font-size:13px;font-family:var(--mono);word-break:break-all;margin-top:2px}
+.detail-grid .full{grid-column:1/-1}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
+.modal input[type="text"]{
+  width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-size:13.5px;outline:none;font-family:var(--sans);
+}
+.modal input[type="text"]:focus{border-color:var(--accent)}
+.confirm-text{background:var(--danger-soft);border:1px solid var(--danger);
+  border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--text);line-height:1.6;margin-bottom:12px}
+.confirm-text b{color:var(--danger)}
+
+/* toast */
+.toast-wrap{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:200;
+  display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{
+  background:var(--surface);border:1px solid var(--border);color:var(--text);
+  padding:9px 18px;border-radius:8px;font-size:13px;box-shadow:var(--shadow);
+  animation:toast-in .22s ease;max-width:420px;text-align:center;
+}
+.toast.err{border-color:var(--danger);color:var(--danger)}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* 加载指示 */
+.loading{display:flex;align-items:center;justify-content:center;height:180px;color:var(--text3);gap:10px;font-size:13px}
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media (max-width:900px){
+  .toolbar{gap:8px;padding:8px 10px}
+  .search{order:3;flex:1 1 100%}
+  .search input{width:100%}
+  .crumbs{order:4;flex-basis:100%}
+  .brand span{display:none}
+  .list-head,.file-row{grid-template-columns:minmax(150px,1fr) 90px 80px}
+  .col-type{display:none}
+  .list-head .th-type{display:none}
+  .dist-wrap{display:none}
+  .stats{gap:12px;padding:8px 12px}
+  .stat-bar{width:80px}
+}
+@media (max-width:560px){
+  .list-head,.file-row{grid-template-columns:minmax(120px,1fr) 70px}
+  .col-time{display:none}
+  .list-head .th-time{display:none}
+  .btn span.txt{display:none}
+  .detail-grid{grid-template-columns:1fr}
+  .grid-view{grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}
+  .search input,.modal input[type="text"]{font-size:16px}
+}
+</style>
+</head>
+<body data-theme="dark">
+
+<!-- ===== 顶部工具栏 ===== -->
+<header class="toolbar">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><path d="M12 11v6"/><path d="M9.5 14l2.5 2.5 2.5-2.5"/></svg>
+    <span>文件夹管理器</span>
+  </div>
+
+  <button class="btn btn-primary" id="btn-open">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+    <span class="txt">选择文件夹</span>
+  </button>
+
+  <button class="btn" id="btn-up" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 15l-7-7-7 7"/></svg>
+  </button>
+
+  <button class="btn" id="btn-newdir" disabled title="在当前目录新建文件夹">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><path d="M12 11v6"/><path d="M9.5 14h5"/></svg>
+    <span class="txt">新建文件夹</span>
+  </button>
+
+  <div class="crumbs" id="crumbs" title="当前路径"></div>
+
+  <div class="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input type="text" id="search-input" placeholder="搜索文件…" autocomplete="off">
+  </div>
+
+  <div class="select-wrap">
+    <select id="sort-select" title="排序方式">
+      <option value="name">名称</option>
+      <option value="size">大小</option>
+      <option value="mtime">修改时间</option>
+      <option value="type">类型</option>
+    </select>
+  </div>
+
+  <button class="btn icon-btn" id="btn-view" title="切换视图">
+    <svg id="ico-view" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+  </button>
+
+  <button class="btn icon-btn" id="btn-theme" title="切换主题">
+    <svg id="ico-theme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+  </button>
+</header>
+
+<!-- ===== 主内容区 ===== -->
+<main class="main" id="main">
+  <div class="empty" id="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>
+    <h2>选择一个文件夹开始管理</h2>
+    <p>点击右上角「选择文件夹」，授权后即可浏览、搜索、新建文件夹、删除和查看本地文件的详细信息。数据仅在你的浏览器本地处理，不会上传。</p>
+    <button class="btn btn-primary" id="empty-open">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+      选择文件夹
+    </button>
+  </div>
+</main>
+
+<!-- ===== 底部统计 ===== -->
+<footer class="stats" id="stats" hidden>
+  <div class="stat">共 <b id="st-items">0</b> 项</div>
+  <div class="stat"><b id="st-dirs">0</b> 个文件夹</div>
+  <div class="stat"><b id="st-files">0</b> 个文件</div>
+  <div class="stat" title="当前目录下文件总大小">合计 <b id="st-size">0 B</b></div>
+  <div class="stat" title="与上一级目录的关系"><b id="st-sel">未选中</b></div>
+  <div class="dist-wrap" id="dist-wrap">
+    <div class="dist-bars" id="dist-bars"></div>
+  </div>
+</footer>
+
+<!-- ===== 弹窗：详情 ===== -->
+<div class="modal-mask" id="modal-detail">
+  <div class="modal">
+    <h3 id="detail-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      <span>文件信息</span>
+    </h3>
+    <div class="detail-grid" id="detail-grid"></div>
+    <div class="modal-actions">
+      <button class="btn" id="detail-close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 弹窗：新建文件夹 ===== -->
+<div class="modal-mask" id="modal-newdir">
+  <div class="modal">
+    <h3>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><path d="M12 11v6"/><path d="M9.5 14h5"/></svg>
+      <span>新建文件夹</span>
+    </h3>
+    <p id="newdir-path" style="font-family:var(--mono);font-size:12px;word-break:break-all"></p>
+    <input type="text" id="newdir-name" placeholder="输入文件夹名称" maxlength="120">
+    <div class="modal-actions">
+      <button class="btn" data-close="modal-newdir">取消</button>
+      <button class="btn btn-primary" id="newdir-ok">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 弹窗：重命名 ===== -->
+<div class="modal-mask" id="modal-rename">
+  <div class="modal">
+    <h3>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      <span>重命名</span>
+    </h3>
+    <p id="rename-path" style="font-family:var(--mono);font-size:12px;word-break:break-all"></p>
+    <input type="text" id="rename-name" maxlength="120">
+    <div class="modal-actions">
+      <button class="btn" data-close="modal-rename">取消</button>
+      <button class="btn btn-primary" id="rename-ok">重命名</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 弹窗：删除确认 ===== -->
+<div class="modal-mask" id="modal-delete">
+  <div class="modal">
+    <h3>
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+      <span>确认删除</span>
+    </h3>
+    <div class="confirm-text" id="delete-text"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close="modal-delete">取消</button>
+      <button class="btn btn-danger" id="delete-ok">永久删除</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+"use strict";
+/* ===== 状态 ===== */
+const state = {
+  root: null,        // FileSystemDirectoryHandle 根
+  current: null,     // 当前目录 handle
+  path: [],          // 当前路径名称数组
+  entries: [],       // 当前目录条目 [{name,handle,kind,size,mtime,type,children}]
+  sortBy: "name",
+  sortDesc: false,
+  query: "",
+  view: "list",      // list | grid
+  selected: null,    // 选中的条目
+};
+
+/* ===== 工具函数 ===== */
+const $ = id => document.getElementById(id);
+const ICON_COLORS = ["#14b8a6","#3b82f6","#8b5cf6","#f59e0b","#ec4899","#10b981","#06b6d4","#f43f5e"];
+function hashColor(s){
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return ICON_COLORS[h % ICON_COLORS.length];
+}
+function fmtSize(n){
+  if (n == null || isNaN(n)) return "—";
+  if (n < 1024) return n + " B";
+  const units = ["KB","MB","GB","TB","PB"];
+  let u = -1;
+  do { n /= 1024; u++; } while (n >= 1024 && u < units.length - 1);
+  return n.toFixed(n < 10 ? 1 : 0) + " " + units[u];
+}
+function fmtTime(ms){
+  if (!ms) return "—";
+  const d = new Date(ms);
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function detectType(name, mime){
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  if (mime) {
+    if (mime.startsWith("image/")) return "图片";
+    if (mime.startsWith("video/")) return "视频";
+    if (mime.startsWith("audio/")) return "音频";
+    if (mime.startsWith("text/")) return "文本";
+    if (mime.includes("pdf")) return "PDF";
+    if (mime.includes("zip") || mime.includes("compressed") || mime.includes("rar")) return "压缩包";
+    if (mime.includes("json")) return "JSON";
+  }
+  const img = ["jpg","jpeg","png","gif","webp","bmp","svg","ico","avif","heic"];
+  const vid = ["mp4","mkv","avi","mov","wmv","flv","webm","m4v","ts"];
+  const aud = ["mp3","wav","flac","aac","ogg","m4a","wma","ape"];
+  const doc = ["doc","docx","xls","xlsx","ppt","pptx","pdf","txt","md","csv","rtf","odt","ods"];
+  const comp = ["zip","rar","7z","tar","gz","bz2","xz","iso","cab"];
+  const code = ["js","ts","py","java","c","cpp","h","cs","go","rs","php","html","css","json","xml","sql","sh","bat","vue","jsx","tsx"];
+  if (img.includes(ext)) return "图片";
+  if (vid.includes(ext)) return "视频";
+  if (aud.includes(ext)) return "音频";
+  if (comp.includes(ext)) return "压缩包";
+  if (code.includes(ext)) return "代码";
+  if (ext === "pdf") return "PDF";
+  if (doc.includes(ext)) return "文档";
+  if (!ext) return "无扩展名";
+  return ext.toUpperCase();
+}
+function typeIcon(type, isDir){
+  if (isDir) return `<svg class="ic" viewBox="0 0 24 24" fill="#f59e0b" stroke="rgba(0,0,0,.18)" stroke-width="1"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>`;
+  const c = hashColor(type);
+  const map = {
+    "图片": `<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.6"/><path d="M21 15l-5-5L5 21"/>`,
+    "视频": `<rect x="3" y="5" width="15" height="14" rx="2"/><path d="M18 10l3-2.5v9L18 14"/>`,
+    "音频": `<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>`,
+    "压缩包": `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10"/><path d="M7 12h10"/><path d="M7 16h6"/>`,
+    "文档": `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/>`,
+    "代码": `<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>`,
+    "PDF": `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6"/><path d="M12 12v6"/>`,
+    "JSON": `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M10 12l-2 2 2 2"/><path d="M14 16l2-2-2-2"/>`,
+    "文本": `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/>`,
+    "无扩展名": `<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 3.5"/>`,
+  };
+  const body = map[type] || `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><circle cx="12" cy="14" r="2.2"/>`;
+  return `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+}
+function toast(msg, isErr){
+  const t = document.createElement("div");
+  t.className = "toast" + (isErr ? " err" : "");
+  t.textContent = msg;
+  $("toasts").appendChild(t);
+  setTimeout(() => { t.style.opacity = "0"; t.style.transition = "opacity .3s"; setTimeout(() => t.remove(), 320); }, 2600);
+}
+
+/* ===== 文件系统操作 ===== */
+async function pickFolder(){
+  if (!window.showDirectoryPicker){
+    toast("当前浏览器不支持文件夹访问，请使用 Chrome / Edge 最新版", true);
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+    state.root = handle;
+    state.path = [];
+    await enterDir(handle);
+  } catch (e) {
+    if (e.name !== "AbortError") toast("无法读取文件夹：" + e.message, true);
+  }
+}
+
+async function readDir(handle){
+  const out = [];
+  for await (const [name, h] of handle.entries()) {
+    const item = { name, handle: h, kind: h.kind };
+    if (h.kind === "file") {
+      try {
+        const f = await h.getFile();
+        item.size = f.size;
+        item.mtime = f.lastModified;
+        item.type = detectType(name, f.type);
+      } catch { item.size = 0; item.mtime = 0; item.type = detectType(name, ""); }
+    } else {
+      item.size = 0; item.mtime = 0; item.type = "文件夹";
+    }
+    out.push(item);
+  }
+  return out;
+}
+
+async function enterDir(handle){
+  showLoading(true);
+  try {
+    state.current = handle;
+    state.entries = await readDir(handle);
+    state.selected = null;
+    renderCrumbs();
+    renderList();
+    renderStats();
+  } catch (e) {
+    toast("读取目录失败：" + e.message, true);
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function goUp(){
+  if (state.path.length === 0) return;
+  const parentName = state.path.pop();
+  if (parentName === undefined) return;
+  // 从根重新沿路径进入（FileSystemDirectoryHandle 无 parent 引用）
+  let cur = state.root;
+  for (const seg of state.path) {
+    cur = await cur.getDirectoryHandle(seg);
+  }
+  await enterDir(cur);
+}
+
+async function goTo(index){
+  if (index < 0) { state.path = []; await enterDir(state.root); return; }
+  if (index === state.path.length) return;
+  let cur = state.root;
+  const newPath = [];
+  for (let i = 0; i <= index; i++) {
+    const seg = state.path[i];
+    cur = await cur.getDirectoryHandle(seg);
+    newPath.push(seg);
+  }
+  state.path = newPath;
+  await enterDir(cur);
+}
+
+async function openItem(item){
+  if (item.kind === "directory") {
+    state.path.push(item.name);
+    await enterDir(item.handle);
+  } else {
+    showDetail(item);
+  }
+}
+
+async function newFolder(name){
+  try {
+    await state.current.getDirectoryHandle(name, { create: true });
+    await enterDir(state.current);
+    toast("已创建文件夹 " + name);
+  } catch (e) {
+    toast("创建失败：" + e.message, true);
+  }
+}
+
+async function renameItem(item, newName){
+  if (!item.handle.move) {
+    toast("当前浏览器不支持重命名（需 Chrome 110+）", true);
+    return;
+  }
+  try {
+    await item.handle.move(newName);
+    await enterDir(state.current);
+    toast("已重命名为 " + newName);
+  } catch (e) {
+    toast("重命名失败：" + e.message, true);
+  }
+}
+
+async function deleteItem(item){
+  try {
+    await state.current.removeEntry(item.name, { recursive: true });
+    await enterDir(state.current);
+    toast("已删除 " + item.name);
+  } catch (e) {
+    toast("删除失败：" + e.message, true);
+  }
+}
+
+/* ===== 渲染 ===== */
+function showLoading(on){
+  const main = $("main");
+  if (on) {
+    main.innerHTML = `<div class="loading"><div class="spinner"></div>正在读取目录…</div>`;
+  }
+}
+function filteredSorted(){
+  let list = state.entries.slice();
+  if (state.query) {
+    const q = state.query.toLowerCase();
+    list = list.filter(e => e.name.toLowerCase().includes(q));
+  }
+  const dirs = list.filter(e => e.kind === "directory");
+  const files = list.filter(e => e.kind !== "directory");
+  const cmp = (a, b) => {
+    const key = state.sortBy;
+    let r = 0;
+    if (key === "size") r = (a.size || 0) - (b.size || 0);
+    else if (key === "mtime") r = (a.mtime || 0) - (b.mtime || 0);
+    else if (key === "type") r = String(a.type).localeCompare(String(b.type), "zh");
+    else r = a.name.localeCompare(b.name, "zh", { numeric: true, sensitivity: "base" });
+    return state.sortDesc ? -r : r;
+  };
+  dirs.sort(cmp); files.sort(cmp);
+  return dirs.concat(files);
+}
+
+function renderList(){
+  const main = $("main");
+  const list = filteredSorted();
+  if (!state.current) {
+    main.innerHTML = "";
+    $("empty-state").style.display = "flex";
+    main.appendChild($("empty-state"));
+    return;
+  }
+  $("empty-state").style.display = "none";
+
+  if (state.view === "grid") {
+    const grid = document.createElement("div");
+    grid.className = "grid-view";
+    if (list.length === 0) {
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><p>此文件夹为空</p></div>`;
+    }
+    list.forEach(item => {
+      const el = document.createElement("div");
+      el.className = "grid-item";
+      el.tabIndex = 0;
+      el.dataset.kind = item.kind;
+      el.dataset.name = item.name;
+      el.innerHTML = `
+        ${typeIcon(item.type, item.kind === "directory")}
+        <div class="nm">${escapeHtml(item.name)}</div>
+        <div class="meta">${item.kind === "directory" ? "文件夹" : fmtSize(item.size)}</div>`;
+      el.addEventListener("click", () => { state.selected = item; highlight(); openItem(item); });
+      el.addEventListener("contextmenu", e => { e.preventDefault(); state.selected = item; highlight(); showCtxMenu(e, item); });
+      el.addEventListener("keydown", e => {
+        if (e.key === "Enter") openItem(item);
+      });
+      grid.appendChild(el);
+    });
+    main.innerHTML = "";
+    main.appendChild(grid);
+  } else {
+    const wrap = document.createElement("div");
+    wrap.className = "list-view";
+    const head = document.createElement("div");
+    head.className = "list-head";
+    head.innerHTML = `
+      <div class="th th-name" data-key="name">名称<span class="arrow"></span></div>
+      <div class="th th-size" data-key="size">大小<span class="arrow"></span></div>
+      <div class="th th-time" data-key="mtime">修改时间<span class="arrow"></span></div>
+      <div class="th th-type" data-key="type">类型<span class="arrow"></span></div>`;
+    wrap.appendChild(head);
+    // 排序箭头
+    wrap.querySelectorAll(".th").forEach(th => {
+      if (th.dataset.key === state.sortBy) {
+        th.querySelector(".arrow").textContent = state.sortDesc ? "▲" : "▼";
+        th.style.color = "var(--text)";
+      }
+    });
+    if (list.length === 0) {
+      wrap.innerHTML += `<div class="empty" style="height:160px;padding:20px"><p>没有匹配的内容</p></div>`;
+    }
+    list.forEach(item => {
+      const row = document.createElement("div");
+      row.className = "file-row";
+      row.tabIndex = 0;
+      row.dataset.kind = item.kind;
+      row.dataset.name = item.name;
+      row.innerHTML = `
+        <div class="col-name">${typeIcon(item.type, item.kind === "directory")}<span class="nm" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span></div>
+        <div class="col-size">${item.kind === "directory" ? "—" : fmtSize(item.size)}</div>
+        <div class="col-time">${fmtTime(item.mtime)}</div>
+        <div class="col-type">${item.kind === "directory" ? "文件夹" : item.type}</div>`;
+      row.addEventListener("click", e => {
+        state.selected = item; highlight();
+        // 单击进入/打开（移动端友好）
+        openItem(item);
+      });
+      row.addEventListener("contextmenu", e => { e.preventDefault(); state.selected = item; highlight(); showCtxMenu(e, item); });
+      row.addEventListener("keydown", e => {
+        if (e.key === "Enter") openItem(item);
+      });
+      wrap.appendChild(row);
+    });
+    main.innerHTML = "";
+    main.appendChild(wrap);
+    // 表头排序箭头
+    wrap.querySelectorAll(".th").forEach(th => {
+      const key = th.dataset.key;
+      th.addEventListener("click", () => {
+        if (state.sortBy === key) state.sortDesc = !state.sortDesc;
+        else { state.sortBy = key; state.sortDesc = false; }
+        $("sort-select").value = key;
+        renderList(); renderStats();
+      });
+    });
+  }
+}
+
+function highlight(){
+  document.querySelectorAll(".file-row.selected,.grid-item.selected").forEach(el => el.classList.remove("selected"));
+  if (!state.selected) return;
+  document.querySelectorAll(".file-row,.grid-item").forEach(el => {
+    if (el.dataset.name === state.selected.name) el.classList.add("selected");
+  });
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+}
+
+function renderCrumbs(){
+  const c = $("crumbs");
+  c.innerHTML = "";
+  // 根
+  const rootCrumb = document.createElement("span");
+  rootCrumb.className = "crumb" + (state.path.length === 0 ? " current" : "");
+  rootCrumb.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>`;
+  if (state.path.length > 0) rootCrumb.addEventListener("click", () => goTo(-1));
+  c.appendChild(rootCrumb);
+  state.path.forEach((seg, i) => {
+    const sep = document.createElement("span");
+    sep.className = "crumb-sep";
+    sep.textContent = "/";
+    c.appendChild(sep);
+    const cr = document.createElement("span");
+    cr.className = "crumb" + (i === state.path.length - 1 ? " current" : "");
+    cr.textContent = seg;
+    cr.title = seg;
+    if (i < state.path.length - 1) cr.addEventListener("click", () => goTo(i));
+    c.appendChild(cr);
+  });
+  $("btn-up").disabled = state.path.length === 0;
+  $("btn-newdir").disabled = !state.current;
+}
+
+function renderStats(){
+  const st = $("stats");
+  if (!state.current) { st.hidden = true; return; }
+  st.hidden = false;
+  const dirs = state.entries.filter(e => e.kind === "directory").length;
+  const files = state.entries.filter(e => e.kind !== "directory");
+  const total = files.reduce((s, e) => s + (e.size || 0), 0);
+  $("st-items").textContent = state.entries.length;
+  $("st-dirs").textContent = dirs;
+  $("st-files").textContent = files.length;
+  $("st-size").textContent = fmtSize(total);
+  $("st-sel").textContent = state.selected ? `已选：${state.selected.name}` : "未选中";
+  // 类型分布
+  const counts = {};
+  files.forEach(f => { counts[f.type] = (counts[f.type] || 0) + 1; });
+  const types = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).slice(0, 5);
+  const max = Math.max(1, ...types.map(t => counts[t]));
+  const bars = $("dist-bars");
+  bars.innerHTML = types.length === 0 ? "<span style='color:var(--text3)'>无文件</span>" :
+    types.map(t => `
+      <div class="dist-row">
+        <span class="lbl" title="${escapeHtml(t)}">${escapeHtml(t)}</span>
+        <div class="tr"><i style="width:${(counts[t]/max*100).toFixed(0)}%"></i></div>
+        <span class="vl">${counts[t]}</span>
+      </div>`).join("");
+}
+
+function showDetail(item){
+  const grid = $("detail-grid");
+  const title = item.kind === "directory" ? "文件夹信息" : "文件信息";
+  $("detail-title").querySelector("span").textContent = title;
+  const isDir = item.kind === "directory";
+  grid.innerHTML = `
+    <div class="full"><div class="k">名称</div><div class="v">${escapeHtml(item.name)}</div></div>
+    <div><div class="k">类型</div><div class="v">${isDir ? "文件夹" : item.type}</div></div>
+    <div><div class="k">大小</div><div class="v">${isDir ? "—" : fmtSize(item.size) + "（" + item.size + " 字节）"}</div></div>
+    <div><div class="k">修改时间</div><div class="v">${fmtTime(item.mtime)}</div></div>
+    <div><div class="k">读取方式</div><div class="v">File System Access API</div></div>`;
+  $("modal-detail").classList.add("show");
+}
+
+/* ===== 右键菜单 ===== */
+let ctxEl = null;
+function showCtxMenu(e, item){
+  closeCtx();
+  const menu = document.createElement("div");
+  menu.className = "ctx-menu";
+  menu.innerHTML = `
+    <button data-act="open">${item.kind === "directory" ? "打开" : "查看详情"}</button>
+    <button data-act="rename">重命名</button>
+    <button data-act="delete" class="danger">删除</button>`;
+  Object.assign(menu.style, {
+    position: "fixed", left: "0px", top: "0px", zIndex: 150, minWidth: "140px",
+    background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px",
+    boxShadow: "var(--shadow)", padding: "4px", display: "flex", flexDirection: "column", gap: "2px",
+  });
+  menu.querySelectorAll("button").forEach(b => Object.assign(b.style, {
+    display: "flex", alignItems: "center", padding: "8px 12px", background: "transparent",
+    border: "none", color: "var(--text)", fontSize: "13px", borderRadius: "7px", cursor: "pointer",
+    fontFamily: "var(--sans)", textAlign: "left",
+  }));
+  menu.querySelector("button.danger").style.color = "var(--danger)";
+  menu.addEventListener("mouseover", e => { if (e.target.tagName === "BUTTON") e.target.style.background = "var(--hover)"; });
+  menu.addEventListener("mouseout", e => { if (e.target.tagName === "BUTTON") e.target.style.background = "transparent"; });
+  menu.querySelector('[data-act="open"]').addEventListener("click", () => { closeCtx(); openItem(item); });
+  menu.querySelector('[data-act="rename"]').addEventListener("click", () => { closeCtx(); openRename(item); });
+  menu.querySelector('[data-act="delete"]').addEventListener("click", () => { closeCtx(); openDelete(item); });
+  document.body.appendChild(menu);
+  // 防溢出
+  const r = menu.getBoundingClientRect();
+  const vw = innerWidth, vh = innerHeight;
+  menu.style.left = Math.min(e.clientX, vw - r.width - 8) + "px";
+  menu.style.top = Math.min(e.clientY, vh - r.height - 8) + "px";
+  ctxEl = menu;
+  document.addEventListener("click", closeCtx, { once: true });
+  menu.addEventListener("click", ev => ev.stopPropagation());
+}
+function closeCtx(){ if (ctxEl) { ctxEl.remove(); ctxEl = null; } }
+
+/* ===== 弹窗交互 ===== */
+function openNewDir(){
+  const p = state.path.join("/") || "根目录";
+  $("newdir-path").textContent = p + " 下创建新文件夹";
+  $("newdir-name").value = "";
+  $("modal-newdir").classList.add("show");
+  setTimeout(() => $("newdir-name").focus(), 60);
+}
+function openRename(item){
+  $("rename-path").textContent = "重命名：" + item.name;
+  $("rename-name").value = item.name;
+  $("rename-name").dataset.item = JSON.stringify({ name: item.name });
+  $("modal-rename").classList.add("show");
+  setTimeout(() => { const i = $("rename-name"); i.focus(); i.select(); }, 60);
+}
+function openDelete(item){
+  $("delete-text").innerHTML = `确定要<b>永久删除</b>「${escapeHtml(item.name)}」吗？<br>${item.kind === "directory" ? "文件夹内所有内容将一并删除，" : ""}此操作不可撤销。`;
+  $("delete-ok").dataset.item = JSON.stringify({ name: item.name });
+  $("modal-delete").classList.add("show");
+}
+
+/* ===== 事件绑定 ===== */
+$("btn-open").addEventListener("click", pickFolder);
+$("empty-open").addEventListener("click", pickFolder);
+$("btn-up").addEventListener("click", goUp);
+$("btn-newdir").addEventListener("click", openNewDir);
+$("search-input").addEventListener("input", e => { state.query = e.target.value.trim(); renderList(); });
+$("sort-select").addEventListener("change", e => {
+  state.sortBy = e.target.value;
+  state.sortDesc = false;
+  renderList(); renderStats();
+});
+$("btn-view").addEventListener("click", () => {
+  state.view = state.view === "list" ? "grid" : "list";
+  $("ico-view").innerHTML = state.view === "list"
+    ? `<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>`
+    : `<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>`;
+  renderList();
+});
+$("btn-theme").addEventListener("click", () => {
+  const cur = document.body.dataset.theme;
+  const next = cur === "dark" ? "light" : "dark";
+  document.body.dataset.theme = next;
+  $("ico-theme").innerHTML = next === "dark"
+    ? `<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>`
+    : `<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.9 4.9l1.4 1.4"/><path d="M17.7 17.7l1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M4.9 19.1l1.4-1.4"/><path d="M17.7 6.3l1.4-1.4"/>`;
+});
+// 弹窗关闭
+document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => $(b.dataset.close).classList.remove("show")));
+document.querySelectorAll(".modal-mask").forEach(m => m.addEventListener("click", e => { if (e.target === m) m.classList.remove("show"); }));
+$("detail-close").addEventListener("click", () => $("modal-detail").classList.remove("show"));
+$("newdir-ok").addEventListener("click", async () => {
+  const name = $("newdir-name").value.trim();
+  if (!name) { toast("请输入名称", true); return; }
+  $("modal-newdir").classList.remove("show");
+  await newFolder(name);
+});
+$("rename-ok").addEventListener("click", async () => {
+  const item = JSON.parse($("rename-name").dataset.item || "{}");
+  const newName = $("rename-name").value.trim();
+  if (!newName) { toast("请输入名称", true); return; }
+  if (newName === item.name) { $("modal-rename").classList.remove("show"); return; }
+  $("modal-rename").classList.remove("show");
+  const target = state.entries.find(e => e.name === item.name);
+  if (target) await renameItem(target, newName);
+});
+$("delete-ok").addEventListener("click", async () => {
+  const item = JSON.parse($("delete-ok").dataset.item || "{}");
+  $("modal-delete").classList.remove("show");
+  const target = state.entries.find(e => e.name === item.name);
+  if (target) await deleteItem(target);
+});
+// 回车提交弹窗
+["newdir-name","rename-name"].forEach(id => $(id).addEventListener("keydown", e => {
+  if (e.key === "Enter") $(id === "newdir-name" ? "newdir-ok" : "rename-ok").click();
+}));
+// 键盘快捷键：Ctrl+F 聚焦搜索
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+    e.preventDefault(); $("search-input").focus(); $("search-input").select();
+  }
+});
+</script>
+</body>
+</html>
